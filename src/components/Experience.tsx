@@ -71,7 +71,8 @@ function GlassCard({ k, total }: { k: number; total: number }) {
   const c = k - (total - 1) / 2
 
   useFrame((_, delta) => {
-    const spread = scroll.range(0, 1 / (PAGES - 1)) // 0 closed → 1 fully fanned
+    // rest pose is already a visible fan; scroll opens it the rest of the way
+    const spread = 0.34 + scroll.range(0, 1 / (PAGES - 1)) * 0.66
     const tx = c * (0.34 + spread * 1.2)
     const ty = -Math.abs(c) * spread * 0.22 + (hovered ? 0.22 : 0)
     const tz = -k * 0.08 + spread * 0.25 + (hovered ? 0.55 : 0)
@@ -82,7 +83,7 @@ function GlassCard({ k, total }: { k: number; total: number }) {
       0.22,
       delta,
     )
-    easing.damp(stripe.current, 'emissiveIntensity', hovered ? 2.2 : 0.7, 0.2, delta)
+    easing.damp(stripe.current, 'emissiveIntensity', hovered ? 2.2 : 1.1, 0.2, delta)
   })
 
   return (
@@ -96,14 +97,15 @@ function GlassCard({ k, total }: { k: number; total: number }) {
     >
       <RoundedBox args={[2.5, 1.55, 0.07]} radius={0.1} smoothness={4}>
         <meshPhysicalMaterial
-          color="#8fa79b"
-          metalness={0.15}
-          roughness={0.12}
+          color="#a7c2b4"
+          metalness={0.3}
+          roughness={0.1}
           clearcoat={1}
           clearcoatRoughness={0.08}
-          transmission={0.55}
+          transmission={0.4}
           thickness={0.5}
           ior={1.4}
+          envMapIntensity={1.6}
         />
       </RoundedBox>
       {/* emerald signature stripe */}
@@ -133,13 +135,29 @@ function GlassCard({ k, total }: { k: number; total: number }) {
 function CardFan() {
   const TOTAL = 5
   return (
-    <Float speed={1.2} rotationIntensity={0.12} floatIntensity={0.5}>
-      <group position={[0, -0.2, 0]}>
-        {Array.from({ length: TOTAL }, (_, k) => (
-          <GlassCard key={k} k={k} total={TOTAL} />
-        ))}
-      </group>
-    </Float>
+    <group>
+      {/* soft emerald halo so the fan reads against the dark backdrop */}
+      <mesh position={[0, -0.15, -2.4]}>
+        <circleGeometry args={[3.4, 64]} />
+        <meshBasicMaterial
+          color={EMERALD}
+          transparent
+          opacity={0.07}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+      {/* dedicated key + rim lights for the hero composition */}
+      <pointLight position={[0, 2.6, 4.5]} intensity={55} distance={14} color="#dff5ea" />
+      <pointLight position={[0, -2.2, 2.5]} intensity={28} distance={10} color={EMERALD} />
+      <Float speed={1.2} rotationIntensity={0.12} floatIntensity={0.5}>
+        <group position={[0, -0.2, 0.4]} scale={1.12}>
+          {Array.from({ length: TOTAL }, (_, k) => (
+            <GlassCard key={k} k={k} total={TOTAL} />
+          ))}
+        </group>
+      </Float>
+    </group>
   )
 }
 
@@ -305,7 +323,9 @@ function StreamNode({
       </mesh>
       {major && <pointLight intensity={hovered ? 8 : 3} distance={5} color={EMERALD} />}
       {label && (
-        <Html center position={[0, 0.55, 0]} className="node-html" zIndexRange={[20, 0]}>
+        // portal into scroll.fixed: the default target is the scrolled element,
+        // which shifts the projected label offscreen by scrollTop on pages > 0
+        <Html center position={[0, 0.55, 0]} className="node-html" zIndexRange={[20, 0]} portal={{ current: scroll.fixed }}>
           <div ref={labelEl} className={`node-label ${hovered ? 'node-label--hot' : ''}`}>
             <strong>{label}</strong>
             <span>{sub}</span>
